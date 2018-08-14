@@ -7,7 +7,7 @@ from six.moves import range
 from . import path_table, record, volume_descriptors, susp
 
 
-SECTOR_LENGTH = 2048
+SECTOR_LENGTH=2048
 
 
 class SourceError(Exception):
@@ -210,21 +210,101 @@ class Source(object):
 
 
 class FileStream(Source):
-    def __init__(self, file, offset, length):
+    def __init__(self, file, offset, length, sector_start=0, sector_length=SECTOR_LENGTH):
         super(FileStream, self).__init__()
         self._file = file
         self._offset = offset
         self._length = length
+
+        # The byte position in logical bytes
+        self.position = 0
+
+        # The byte position in physical bytes
         self.cur_offset = 0
 
-    def read(self, *args):
-        size = args[0] if args else -1
-        self._file.seek(self._offset + self.cur_offset)
-        if size < 0 or size > self._length - self.cur_offset:
-            size = self._length - self.cur_offset
-        data = self._file.read(size)
-        if data:
-            self.cur_offset += len(data)
+        # The sector breakdown
+        self.sector_start  = sector_start
+        self.sector_length = sector_length
+
+    def seek(self, new_position = 0, *args):
+        """ Moves the pointer within the file stream to the specified byte.
+
+        This moves the position relative to the file internally. So, if it
+        is 0, it is either the start of the ISO/BIN or the start of the
+        individual record.
+
+        It takes into account the sector offset and length, which is 0 and
+        2048 for a normal ISO, but different for a variety of raw CD binary
+        dumps (most commonly 16 and 2352) and sets the internal cursor
+        position accordingly.
+
+        Args:
+            new_position (int): The byte position within in the ISO or file.
+        """
+
+        if new_position > self._length:
+            new_position = self._length
+
+        self.position = new_position
+        self.cur_offset = (self.sector_length * (new_position // 2048)) + (new_position % 2048)
+
+    def read(self, size = -1, *args):
+        """ Reads data from the ISO or record at its current location.
+
+        Args:
+            size (int): The number of bytes to read.
+
+        Returns:
+            bytes: The read bytes or an empty bytestring when nothing could be read.
+        """
+
+        if size < 0 or size > self._length - self.position:
+            size = self._length - self.position
+        self._file.seek(self.sector_start + self._offset + self.cur_offset)
+        if self.sector_length == 2048:
+            data = self._file.read(size)
+            if data:
+                self.cur_offset += len(data)
+                self.position   += len(data)
+        else:
+            left = size
+            within_sector = self.cur_offset % self.sector_length
+            sector_remaining = 2048 - within_sector
+            data = b''
+            while left > 0:
+                # Determine how much we can read within the sector
+                amount = min(left, sector_remaining)
+
+                # If we loop, we are always trying to read from the sector start
+                sector_remaining = 2048
+
+                # Get the data (within the sector our cursor is at)
+                sector_data = self._file.read(amount)
+
+                # Give up if we can't read the data
+                if not sector_data:
+                    break
+
+                # Append the data
+                data += sector_data
+
+                # Advance our cursor within this sector
+                self.cur_offset += len(sector_data)
+                self.position   += len(sector_data)
+
+                # If we have read a sector, skip the ECC/metdata and go to the
+                # next sector (We cannot read over the sector boundary, so when
+                # we consume a sector, our cursor is *at* the sector's data
+                # boundary)
+                if self.cur_offset % self.sector_length == 2048:
+                  self.cur_offset += 304
+
+                # Calculate how much data we have left to read
+                left = size - len(data)
+
+                if left > 0:
+                  # Seek to the next position
+                  self._file.seek(self.sector_start + self._offset + self.cur_offset)
         return data
 
     def _fetch(self, sector, count=1):
@@ -245,7 +325,7 @@ class FileSource(Source):
         return self._file.read(self.sector_length*count)
 
     def get_stream(self, sector, length):
-        return FileStream(self._file, sector*self.sector_length, length)
+        return FileStream(self._file, sector*self.sector_length, length, self.sector_start, self.sector_length)
 
     def close(self):
         self._file.close()
