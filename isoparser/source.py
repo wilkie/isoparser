@@ -7,7 +7,7 @@ from six.moves import range
 from . import path_table, record, volume_descriptors, susp
 
 
-SECTOR_LENGTH=2048
+SECTOR_LENGTH = 2048
 
 
 class SourceError(Exception):
@@ -297,14 +297,14 @@ class FileStream(Source):
                 # we consume a sector, our cursor is *at* the sector's data
                 # boundary)
                 if self.cur_offset % self.sector_length == 2048:
-                  self.cur_offset += 304
+                    self.cur_offset += 304
 
                 # Calculate how much data we have left to read
                 left = size - len(data)
 
                 if left > 0:
-                  # Seek to the next position
-                  self._file.seek(self.sector_start + self._offset + self.cur_offset)
+                    # Seek to the next position
+                    self._file.seek(self.sector_start + self._offset + self.cur_offset)
         return data
 
     def _fetch(self, sector, count=1):

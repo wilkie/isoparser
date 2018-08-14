@@ -28,7 +28,7 @@ class Record(object):
 
         # Must truncate (if the ';' was UCS-2 encoded, there will be a trailing \x00)
         if self.volume_descriptor_name == "supplementary":
-          self.raw_name = self.raw_name.rstrip(b"\x00")
+            self.raw_name = self.raw_name.rstrip(b"\x00")
 
         # System-use area
         susp_entries = []
@@ -81,7 +81,7 @@ class Record(object):
           else:
               name = self.name.decode('utf-8')
         except:
-          name = ""
+            name = ""
         return name
 
     @property

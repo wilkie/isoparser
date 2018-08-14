@@ -33,11 +33,11 @@ class TestIso(unittest.TestCase):
                 for k,v in content.items():
                     # When characters aren't allowed, they are replaced with _
                     if b'?' in k:
-                      k = k.replace(b"?", b"_")
+                        k = k.replace(b"?", b"_")
                     if b';' in k:
-                      k = k.replace(b";", b"_")
+                        k = k.replace(b";", b"_")
                     if b'\\' in k:
-                      k = k.replace(b"\\", b"_")
+                        k = k.replace(b"\\", b"_")
 
                     new_name = k.decode('utf-8').encode('utf-16be')
                     if len(new_name) > 128:
