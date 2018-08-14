@@ -2,9 +2,11 @@ from . import record
 
 
 class PathTable(object):
-    def __init__(self, source):
+    def __init__(self, source, volume_descriptor_name = "primary"):
         self._source = source
         self.paths = {}
+
+        self.volume_descriptor_name = volume_descriptor_name
 
         paths_list = []
 
@@ -28,4 +30,4 @@ class PathTable(object):
     def record(self, *path):
         location = self.paths[path]
         self._source.seek(location)
-        return self._source.unpack_record()
+        return self._source.unpack_record(self.volume_descriptor_name)

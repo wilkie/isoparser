@@ -32,7 +32,7 @@ class PrimaryVD(VolumeDescriptor):
         self.path_table_opt_l_loc          = source.unpack('<i')
         self.path_table_m_loc              = source.unpack('>i')
         self.path_table_opt_m_loc          = source.unpack('>i')
-        self.root_record                   = source.unpack_record()
+        self.root_record                   = source.unpack_record(self.name)
         self.volume_set_identifier         = source.unpack_string(128)
         self.publisher_identifier          = source.unpack_string(128)
         self.data_preparer_identifier      = source.unpack_string(128)
@@ -47,7 +47,7 @@ class PrimaryVD(VolumeDescriptor):
         self.file_structure_version        = source.unpack('B')
 
 
-class SupplementaryVD(VolumeDescriptor):
+class SupplementaryVD(PrimaryVD):
     name = "supplementary"
 
 

@@ -113,16 +113,16 @@ class Source(object):
             raise SourceError("Unknown volume descriptor type: %d" % ty)
         return vd
 
-    def unpack_path_table(self):
-        return path_table.PathTable(self)
+    def unpack_path_table(self, volume_descriptor_name):
+        return path_table.PathTable(self, volume_descriptor_name)
 
-    def unpack_record(self):
+    def unpack_record(self, volume_descriptor_name):
         start_cursor = self.cursor
         length = self.unpack('B')
         if length == 0:
             self.rewind('B')
             return None
-        new_record = record.Record(self, length-1, self.susp_starting_index)
+        new_record = record.Record(self, length-1, self.susp_starting_index, volume_descriptor_name)
         assert self.cursor == start_cursor + length
         return new_record
 

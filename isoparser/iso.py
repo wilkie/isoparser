@@ -1,6 +1,6 @@
 from . import susp, rockridge
 
-from isoparser.source import SourceError
+from . import source as Source
 
 
 class ISO(object):
@@ -15,7 +15,7 @@ class ISO(object):
 
             try:
                 vd = self._source.unpack_volume_descriptor()
-            except SourceError as e:
+            except Source.SourceError as e:
                 # Attempt MODE1/2352 BIN
                 self._source.reinit(sector_start = 16, sector_length = 2352)
                 self._source.seek(sector)
@@ -28,14 +28,20 @@ class ISO(object):
             if vd.name == "terminator":
                 break
 
+        path_descriptor = "primary"
+
+        # Unpack the Joliet path table (if supplementary exists)
+        if 'supplementary' in self.volume_descriptors:
+          path_descriptor = "supplementary"
+
         # Unpack the path table
         self._source.seek(
-            self.volume_descriptors['primary'].path_table_l_loc,
-            self.volume_descriptors['primary'].path_table_size)
-        self.path_table = self._source.unpack_path_table()
+            self.volume_descriptors[path_descriptor].path_table_l_loc,
+            self.volume_descriptors[path_descriptor].path_table_size)
+        self.path_table = self._source.unpack_path_table(path_descriptor)
 
         # Save a reference to the root record
-        self.root = self.volume_descriptors['primary'].root_record
+        self.root = self.volume_descriptors[path_descriptor].root_record
 
         # Check to see if SUSP is enabled
         root_record = self.root.current_directory
@@ -65,8 +71,14 @@ class ISO(object):
             # In Rock Ridge mode, we can't use the path table
             pivot = 0
         else:
-            path = [part.upper() for part in path]
-            pivot = len(path)
+            if 'supplementary' in self.volume_descriptors:
+                # Joliet
+                path = [part.decode('utf-8').encode('utf-16be') for part in path]
+                pivot = len(path)
+                pass
+            else:
+                path = [part.upper() for part in path]
+                pivot = len(path)
 
 
         # Resolve as much of the path as possible via the path table

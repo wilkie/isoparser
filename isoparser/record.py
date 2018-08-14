@@ -1,10 +1,12 @@
 from . import susp, rockridge
 
 class Record(object):
-    def __init__(self, source, length, susp_starting_index=None):
+    def __init__(self, source, length, susp_starting_index=None, volume_descriptor_name = "primary"):
         self._source = source
         self._content = None
         target = source.cursor + length
+
+        self.volume_descriptor_name = volume_descriptor_name
 
         _                  = source.unpack('B')       # TODO: extended attributes length
         self.location      = source.unpack_both('I')
@@ -23,6 +25,10 @@ class Record(object):
             self.raw_name = b""
         if name_length % 2 == 0:
             source.unpack_raw(1) # Parity padding
+
+        # Must truncate (if the ';' was UCS-2 encoded, there will be a trailing \x00)
+        if self.volume_descriptor_name == "supplementary":
+          self.raw_name = self.raw_name.rstrip(b"\x00")
 
         # System-use area
         susp_entries = []
@@ -51,9 +57,10 @@ class Record(object):
         source.unpack_raw(target - source.cursor)
 
     def __repr__(self):
-        return "<Record (%s) name=%r>" % (
+        return "<Record (%s) name=%r name_utf8=%r>" % (
             "directory" if self.is_directory else "file",
-            self.name)
+            self.name,
+            self.name_utf8)
 
     @property
     def name(self):
@@ -65,6 +72,17 @@ class Record(object):
             if entry.flags & rockridge.NM.CONTINUE == 0:
                 break
         return name or self.raw_name
+
+    @property
+    def name_utf8(self):
+        try:
+          if self.volume_descriptor_name == "supplementary":
+              name = self.name.decode('utf-16be')
+          else:
+              name = self.name.decode('utf-8')
+        except:
+          name = ""
+        return name
 
     @property
     def susp_entries_unsafe(self):
@@ -134,10 +152,10 @@ class Record(object):
         """
         assert self.is_directory
         self._source.seek(self.location, self.length)
-        _ = self._source.unpack_record()  # current directory
-        _ = self._source.unpack_record()  # parent directory
+        _ = self._source.unpack_record(self.volume_descriptor_name)  # current directory
+        _ = self._source.unpack_record(self.volume_descriptor_name)  # parent directory
         while len(self._source) > 0:
-            record = self._source.unpack_record()
+            record = self._source.unpack_record(self.volume_descriptor_name)
 
             if record is None:
                 self._source.unpack_boundary()
@@ -160,7 +178,7 @@ class Record(object):
         """
         assert self.is_directory
         self._source.seek(self.location, self.length)
-        return self._source.unpack_record()  # current directory
+        return self._source.unpack_record(self.volume_descriptor_name)  # current directory
 
     @property
     def parent_directory(self):
@@ -170,8 +188,8 @@ class Record(object):
         """
         assert self.is_directory
         self._source.seek(self.location, self.length)
-        _ = self._source.unpack_record()  # current directory
-        return self._source.unpack_record()  # parent directory
+        _ = self._source.unpack_record(self.volume_descriptor_name)  # current directory
+        return self._source.unpack_record(self.volume_descriptor_name)  # parent directory
 
     @property
     def content(self):
