@@ -4,11 +4,12 @@ from . import source as Source
 
 
 class ISO(object):
-    def __init__(self, source):
+    def __init__(self, source, joliet=True):
         self._source = source
 
         # Unpack volume descriptors
         self.volume_descriptors = {}
+        self.joliet = joliet
         sector = 16
         while True:
             self._source.seek(sector)
@@ -31,7 +32,7 @@ class ISO(object):
         path_descriptor = "primary"
 
         # Unpack the Joliet path table (if supplementary exists)
-        if 'supplementary' in self.volume_descriptors:
+        if joliet and 'supplementary' in self.volume_descriptors:
           path_descriptor = "supplementary"
 
         # Unpack the path table

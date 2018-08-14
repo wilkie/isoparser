@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from . import iso, source
 
 
-def parse(path_or_url, cache_content=False, min_fetch=16):
+def parse(path_or_url, cache_content=False, min_fetch=16, joliet=True):
     """
     Returns an :class:`ISO` object for the given filesystem path or URL.
 
@@ -20,4 +20,4 @@ def parse(path_or_url, cache_content=False, min_fetch=16):
         src = source.HTTPSource(path_or_url, cache_content=cache_content, min_fetch=min_fetch)
     else:
         src = source.FileSource(path_or_url, cache_content=cache_content, min_fetch=min_fetch)
-    return iso.ISO(src)
+    return iso.ISO(src, joliet=joliet)
