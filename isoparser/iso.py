@@ -1,5 +1,7 @@
 from . import susp, rockridge
 
+from isoparser.source import SourceError
+
 
 class ISO(object):
     def __init__(self, source):
@@ -10,9 +12,17 @@ class ISO(object):
         sector = 16
         while True:
             self._source.seek(sector)
+
+            try:
+                vd = self._source.unpack_volume_descriptor()
+            except SourceError as e:
+                # Attempt MODE1/2352 BIN
+                self._source.reinit(sector_start = 16, sector_length = 2352)
+                self._source.seek(sector)
+                vd = self._source.unpack_volume_descriptor()
+
             sector += 1
 
-            vd = self._source.unpack_volume_descriptor()
             self.volume_descriptors[vd.name] = vd
 
             if vd.name == "terminator":

@@ -16,17 +16,22 @@ class SourceError(Exception):
 
 class Source(object):
     def __init__(self, cache_content=False, min_fetch=16):
-        self._buff = None
-        self._sectors = {}
-        self.cursor = None
         self.cache_content = cache_content
         self.min_fetch = min_fetch
-        self.susp_starting_index = None
-        self.susp_extensions = []
-        self.rockridge = False
+        self.reinit(0, SECTOR_LENGTH)
 
     def __len__(self):
         return len(self._buff) - self.cursor
+
+    def reinit(self, sector_start, sector_length):
+        self._buff = None
+        self._sectors = {}
+        self.cursor = None
+        self.susp_starting_index = None
+        self.susp_extensions = []
+        self.rockridge = False
+        self.sector_length = sector_length
+        self.sector_start = sector_start
 
     def rewind_raw(self, l):
         if self.cursor < l:
@@ -157,10 +162,19 @@ class Source(object):
 
         def fetch_needed(need_count):
             data = self._fetch(need_start, need_count)
-            self._buff += data
+
+            if self.sector_length == 2048:
+                self._buff += data
+            else:
+                # Extract sectors (for raw BIN/CUE)
+                for sector_idx in range(need_count):
+                    sector_data = data[self.sector_start + sector_idx*self.sector_length:self.sector_start + sector_idx*self.sector_length + 2048]
+                    self._buff += sector_data
+
             if do_caching:
                 for sector_idx in range(need_count):
-                    self._sectors[need_start + sector_idx] = data[sector_idx*SECTOR_LENGTH:(sector_idx+1)*SECTOR_LENGTH]
+                    sector_data = data[self.sector_start + sector_idx*self.sector_length:self.sector_start + sector_idx*self.sector_length + 2048]
+                    self._sectors[need_start + sector_idx] = sector_data
 
         for sector in range(start_sector, start_sector + fetch_sectors):
             if sector in self._sectors:
@@ -214,8 +228,8 @@ class FileStream(Source):
         return data
 
     def _fetch(self, sector, count=1):
-        self._file.seek(sector*SECTOR_LENGTH)
-        return self._file.read(SECTOR_LENGTH*count)
+        self._file.seek(sector*self.sector_length)
+        return self._file.read(self.sector_length*count)
 
     def close(self):
         pass
@@ -227,11 +241,11 @@ class FileSource(Source):
         self._file = open(path, 'rb')
 
     def _fetch(self, sector, count=1):
-        self._file.seek(sector*SECTOR_LENGTH)
-        return self._file.read(SECTOR_LENGTH*count)
+        self._file.seek(sector*self.sector_length)
+        return self._file.read(self.sector_length*count)
 
     def get_stream(self, sector, length):
-        return FileStream(self._file, sector*SECTOR_LENGTH, length)
+        return FileStream(self._file, sector*self.sector_length, length)
 
     def close(self):
         self._file.close()
@@ -243,12 +257,12 @@ class HTTPSource(Source):
         self._url = url
 
     def _fetch(self, sector, count=1):
-        return self.get_stream(sector, count*SECTOR_LENGTH).read()
+        return self.get_stream(sector, count*self.sector_length).read()
 
     def get_stream(self, sector, length):
         opener = request.FancyURLopener()
         opener.http_error_206 = lambda *a, **k: None
         opener.addheader("Range", "bytes=%d-%d" % (
-            SECTOR_LENGTH * sector,
-            SECTOR_LENGTH * sector + length - 1))
+            self.sector_length * sector,
+            self.sector_length * sector + length - 1))
         return opener.open(self._url)
